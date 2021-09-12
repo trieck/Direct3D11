@@ -4,4 +4,5 @@
 *.aps
 /Debug
 /Release
+*.shh
 
