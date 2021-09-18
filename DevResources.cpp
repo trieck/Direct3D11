@@ -63,14 +63,13 @@ HRESULT DevResources::CreateSwapChain(HWND hWnd, IDXGISwapChain1** ppSwapChain)
     ATLASSERT(m_dxgiFactory);
 
     *ppSwapChain = nullptr;
-
     DXGI_SWAP_CHAIN_DESC1 scd{};
     scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     scd.BufferCount = 2;
     scd.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
     scd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
     scd.SampleDesc.Count = 1;
-
+    
     auto hr = m_dxgiFactory->CreateSwapChainForHwnd(
         m_device.Get(),
         hWnd,
