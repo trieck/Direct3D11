@@ -3,24 +3,29 @@
 #include "Direct3DApp.h"
 #include "VertexShader.shh"
 #include "PixelShader.shh"
+#include "resource.h"
 
 extern Direct3DApp _Module;
 
 struct Vertex
 {
     XMFLOAT3 position;
-    XMFLOAT4 color;
+    XMFLOAT2 texture;
 };
 
 static constexpr Vertex vertices[] = {
-    { { 0.5f, 0.5f, 0.0f }, { 0.5f, 0.0f, 0.5f, 1.0f } },
-    { { 0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f, 0.5f, 1.0f } },
-    { { -0.5f, 0.5f, 0.0f }, { 0.75f, 0.0f, 0.5f, 1.0f } },
+    { { 0.5f, 0.5f, 0.0f }, { 0.0f, 1.0f } },
+    { { 0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f } },
+    { { -0.5f, 0.5f, 0.0f }, { 1.0f, 1.0f } },
 
-    { { -0.5f, 0.5f, 0.0f }, { 0.75f, 0.0f, 0.5f, 1.0f } },
-    { { 0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f, 0.5f, 1.0f } },
-    { { -0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f, 0.5f, 1.0f } },
-    
+    { { -0.5f, 0.5f, 0.0f }, { 0.0f, 1.0f } },
+    { { 0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f } },
+    { { -0.5f, -0.5f, 0.0f }, { 1.0f, 1.0f } },
+
+};
+
+static constexpr ULONG indices[] = {
+    0, 1, 2, 3, 4, 5
 };
 
 Scene::~Scene()
@@ -46,7 +51,14 @@ HRESULT Scene::Initialize(HWND hWnd, int cx, int cy)
         return hr;
     }
 
-    hr = devResources.CreateVertexBuffer(vertices, _countof(vertices) * sizeof(Vertex), &m_vertexBuffer);
+    hr = devResources.CreateBuffer(vertices, _countof(vertices) * sizeof(Vertex),
+                                   D3D11_BIND_VERTEX_BUFFER, &m_vertexBuffer);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    hr = devResources.CreateBuffer(indices, _countof(indices) * sizeof(ULONG),
+                                   D3D11_BIND_INDEX_BUFFER, &m_indexBuffer);
     if (FAILED(hr)) {
         return hr;
     }
@@ -112,7 +124,7 @@ HRESULT Scene::Resize(int cx, int cy)
     }
 
     SetViewport(cx, cy);
-    
+
     return S_OK;
 }
 
@@ -120,9 +132,37 @@ HRESULT Scene::InitPipeline()
 {
     auto& devResources = _Module.devResources();
 
-    auto hr = devResources.CreateVertexShader(VertexShaderBytecode,
-                                              _countof(VertexShaderBytecode) * sizeof(BYTE),
-                                              &m_vertexShader);
+    ComPtr<ID3D11Resource> resource;
+    auto hr = devResources.LoadTextureFromResource(_Module.m_hInstResource, IDR_TEXTURE,
+                                                   resource.GetAddressOf(),
+                                                   m_textureView.GetAddressOf());
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    hr = resource.As<ID3D11Texture2D>(&m_texture);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    D3D11_SAMPLER_DESC sd{};
+    sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    sd.MipLODBias = 0.0f;
+    sd.MaxAnisotropy = 1;
+    sd.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+    sd.MaxLOD = D3D11_FLOAT32_MAX;
+
+    hr = devResources.CreateSamplerState(&sd, &m_samplerState);
+    if (FAILED(hr)) {
+        return false;
+    }
+
+    hr = devResources.CreateVertexShader(VertexShaderBytecode,
+                                         _countof(VertexShaderBytecode) * sizeof(BYTE),
+                                         &m_vertexShader);
     if (FAILED(hr)) {
         return hr;
     }
@@ -135,11 +175,17 @@ HRESULT Scene::InitPipeline()
     }
 
     m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
+
     m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+
+    auto* pTextureView = m_textureView.Get();
+    m_context->PSSetShaderResources(0, 1, &pTextureView);
+
+    m_context->PSSetSamplers(0, 1, &m_samplerState);
 
     D3D11_INPUT_ELEMENT_DESC ied[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "COLOR", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
     };
 
     hr = devResources.CreateInputLayout(ied, _countof(ied), VertexShaderBytecode,
@@ -169,19 +215,21 @@ void Scene::Render()
     m_context->OMSetRenderTargets(1, m_renderTarget.GetAddressOf(), nullptr);
 
     // set the back buffer to deep blue
-    float color[4] = { 0.0f, 0.2f, 0.4f, 1.0f };
-    m_context->ClearRenderTargetView(m_renderTarget.Get(), color);
+    m_context->ClearRenderTargetView(m_renderTarget.Get(), Colors::DarkSlateBlue);
 
     // set the vertex buffer
     UINT stride = sizeof(Vertex);
     UINT offset = 0;
     m_context->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &stride, &offset);
 
+    // set the index buffer
+    m_context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+
     // set the primitive topology
     m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     // draw vertices, starting from vertex 0
-    m_context->Draw(_countof(vertices), 0);
+    m_context->DrawIndexed(_countof(indices), 0, 0);
 
     // flip the back buffer and front buffer
     m_swapChain->Present(1, 0);
@@ -189,9 +237,13 @@ void Scene::Render()
 
 void Scene::Destroy()
 {
+    m_samplerState.Reset();
+    m_textureView.Reset();
+    m_texture.Reset();
     m_inputLayout.Reset();
     m_vertexShader.Reset();
     m_pixelShader.Reset();
+    m_indexBuffer.Reset();
     m_vertexBuffer.Reset();
     m_renderTarget.Reset();
     m_swapChain.Reset();

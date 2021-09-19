@@ -25,6 +25,9 @@
     <None Include="PixelShader.shh">
       <Filter>Header Files</Filter>
     </None>
+    <None Include="common.hlsli">
+      <Filter>Assets</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Direct3DApp.h">
@@ -51,6 +54,9 @@
     <ClInclude Include="Scene.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="TextureLoader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Direct3DApp.cpp">
@@ -71,6 +77,9 @@
     <ClCompile Include="Scene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TextureLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Direct3D11.rc">
@@ -82,6 +91,9 @@
       <Filter>Resource Files</Filter>
     </Image>
     <Image Include="res\Direct3D.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="res\texture.dds">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

@@ -16,6 +16,7 @@
 #include <d3d11_1.h>
 
 #include <DirectXMath.h>
+#include <DirectXColors.h>
 #include <D3Dcompiler.h>
 #include <wrl.h>
 

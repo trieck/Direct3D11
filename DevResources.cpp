@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "DevResources.h"
+#include "TextureLoader.h"
+#include <DDSTextureLoader.h>
 
 DevResources::~DevResources()
 {
@@ -69,7 +71,7 @@ HRESULT DevResources::CreateSwapChain(HWND hWnd, IDXGISwapChain1** ppSwapChain)
     scd.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
     scd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
     scd.SampleDesc.Count = 1;
-    
+
     auto hr = m_dxgiFactory->CreateSwapChainForHwnd(
         m_device.Get(),
         hWnd,
@@ -93,7 +95,23 @@ HRESULT DevResources::CreateRenderTarget(ID3D11Texture2D* pTexture, ID3D11Render
     return hr;
 }
 
-HRESULT DevResources::CreateVertexBuffer(const void* pSysMem, UINT byteWidth, ID3D11Buffer** ppBuffer)
+HRESULT DevResources::CreateBuffer(UINT byteWidth, UINT bindFlags, ID3D11Buffer** ppBuffer)
+{
+    ATLASSERT(ppBuffer);
+    ATLASSERT(m_device);
+
+    *ppBuffer = nullptr;
+
+    D3D11_BUFFER_DESC bd{};
+    bd.ByteWidth = byteWidth;
+    bd.BindFlags = bindFlags;
+
+    auto hr = m_device->CreateBuffer(&bd, nullptr, ppBuffer);
+
+    return hr;
+}
+
+HRESULT DevResources::CreateBuffer(const void* pSysMem, UINT byteWidth, UINT bindFlags, ID3D11Buffer** ppBuffer)
 {
     ATLASSERT(pSysMem);
     ATLASSERT(ppBuffer);
@@ -101,13 +119,69 @@ HRESULT DevResources::CreateVertexBuffer(const void* pSysMem, UINT byteWidth, ID
 
     *ppBuffer = nullptr;
 
-    D3D11_BUFFER_DESC bd = { 0 };
+    D3D11_BUFFER_DESC bd{};
     bd.ByteWidth = byteWidth;
-    bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    bd.BindFlags = bindFlags;
 
-    D3D11_SUBRESOURCE_DATA srd = { pSysMem, 0, 0 };
+    D3D11_SUBRESOURCE_DATA srd{ pSysMem, 0, 0 };
 
     auto hr = m_device->CreateBuffer(&bd, &srd, ppBuffer);
+
+    return hr;
+}
+
+HRESULT DevResources::CreateShaderResourceView(ID3D11Resource* pResource, DXGI_FORMAT format,
+                                               D3D11_SRV_DIMENSION viewDimension,
+                                               ID3D11ShaderResourceView** ppShaderResourceView)
+{
+    ATLASSERT(pResource);
+    ATLASSERT(ppShaderResourceView);
+    ATLASSERT(m_device);
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+    srvDesc.Format = format;
+    srvDesc.ViewDimension = viewDimension;
+    srvDesc.Texture2D.MipLevels = 1;
+
+    auto hr = m_device->CreateShaderResourceView(pResource, &srvDesc, ppShaderResourceView);
+
+    return hr;
+}
+
+HRESULT DevResources::CreateSamplerState(D3D11_SAMPLER_DESC* sd, ID3D11SamplerState** ppSamplerState)
+{
+    ATLASSERT(sd);
+    ATLASSERT(ppSamplerState);
+    ATLASSERT(m_device);
+
+    auto hr = m_device->CreateSamplerState(sd, ppSamplerState);
+
+    return hr;
+}
+
+HRESULT DevResources::LoadTextureFromResource(HINSTANCE hInstance, INT nResourceID, ID3D11Resource** ppTexture,
+    ID3D11ShaderResourceView** ppTextureView)
+{
+    ATLASSERT(hInstance);
+    ATLASSERT(ppTexture);
+    ATLASSERT(ppTextureView);
+    ATLASSERT(m_device);
+
+    *ppTexture = nullptr;
+    *ppTextureView = nullptr;
+
+    TextureLoader loader;
+    auto hr = loader.Load(hInstance, nResourceID);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    hr = CreateDDSTextureFromMemory(
+        m_device.Get(),
+        loader.dds(),
+        loader.size(),
+        ppTexture,
+        ppTextureView);
 
     return hr;
 }
@@ -147,6 +221,6 @@ HRESULT DevResources::CreateInputLayout(D3D11_INPUT_ELEMENT_DESC* pieds, UINT nu
     *ppInputLayout = nullptr;
 
     auto hr = m_device->CreateInputLayout(pieds, numElements, byteCode, length, ppInputLayout);
-    
+
     return hr;
 }

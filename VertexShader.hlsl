@@ -1,15 +1,14 @@
-struct PSInput
+#include "common.hlsli"
+
+PSInput main(VSInput input)
 {
-    float4 position : SV_POSITION;
-    float4 color : COLOR;
-};
+    PSInput output;
 
-PSInput main(float4 position : POSITION, float4 color : COLOR)
-{
-    PSInput result;
+    input.position.w = 1.0f;
 
-    result.position = position;
-    result.color = color;
+    output.position = input.position;
 
-    return result;
+    output.tex = input.tex;
+
+    return output;
 }

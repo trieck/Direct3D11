@@ -1,10 +1,12 @@
-struct PSInput
-{
-    float4 position : SV_POSITION;
-    float4 color : COLOR;
-};
+#include "common.hlsli"
+
+Texture2D shaderTexture;
+SamplerState SampleType;
 
 float4 main(PSInput input) : SV_TARGET
 {
-    return input.color;
+    // Sample the pixel color from the texture using the sampler at this texture coordinate location.
+    float4 textureColor = shaderTexture.Sample(SampleType, input.tex);
+
+    return textureColor;
 }

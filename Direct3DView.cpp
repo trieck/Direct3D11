@@ -36,6 +36,4 @@ void Direct3DView::OnPaint(CDCHandle)
     CPaintDC dc(*this);
 
     m_scene.Render();
-
-    ValidateRect(&dc.m_ps.rcPaint);
 }
