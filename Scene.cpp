@@ -11,16 +11,23 @@ struct Vertex
 {
     XMFLOAT3 position;
     XMFLOAT2 texture;
+    XMFLOAT3 normal;
+};
+
+struct alignas(16) LightBuffer
+{
+    XMFLOAT4 diffuseColor;
+    XMFLOAT3 lightDirection;
 };
 
 static constexpr Vertex vertices[] = {
-    { { 0.5f, 0.5f, 0.0f }, { 0.0f, 1.0f } },
-    { { 0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f } },
-    { { -0.5f, 0.5f, 0.0f }, { 1.0f, 1.0f } },
+    { { 0.5f, 0.5f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
+    { { 0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f } },
+    { { -0.5f, 0.5f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
 
-    { { -0.5f, 0.5f, 0.0f }, { 0.0f, 1.0f } },
-    { { 0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f } },
-    { { -0.5f, -0.5f, 0.0f }, { 1.0f, 1.0f } },
+    { { -0.5f, 0.5f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
+    { { 0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f } },
+    { { -0.5f, -0.5f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
 
 };
 
@@ -52,13 +59,15 @@ HRESULT Scene::Initialize(HWND hWnd, int cx, int cy)
     }
 
     hr = devResources.CreateBuffer(vertices, _countof(vertices) * sizeof(Vertex),
-                                   D3D11_BIND_VERTEX_BUFFER, &m_vertexBuffer);
+                                   D3D11_BIND_VERTEX_BUFFER,
+                                   D3D11_USAGE_DEFAULT, 0, m_vertexBuffer.GetAddressOf());
     if (FAILED(hr)) {
         return hr;
     }
 
     hr = devResources.CreateBuffer(indices, _countof(indices) * sizeof(ULONG),
-                                   D3D11_BIND_INDEX_BUFFER, &m_indexBuffer);
+                                   D3D11_BIND_INDEX_BUFFER,
+                                   D3D11_USAGE_DEFAULT, 0, m_indexBuffer.GetAddressOf());
     if (FAILED(hr)) {
         return hr;
     }
@@ -89,7 +98,7 @@ HRESULT Scene::CreateView(HWND hWnd, int cx, int cy)
         return hr;
     }
 
-    hr = devResources.CreateRenderTarget(backbuffer.Get(), &m_renderTarget);
+    hr = devResources.CreateRenderTarget(backbuffer.Get(), m_renderTarget.GetAddressOf());
     if (FAILED(hr)) {
         return hr;
     }
@@ -118,7 +127,7 @@ HRESULT Scene::Resize(int cx, int cy)
         return hr;
     }
 
-    hr = devResources.CreateRenderTarget(backbuffer.Get(), &m_renderTarget);
+    hr = devResources.CreateRenderTarget(backbuffer.Get(), m_renderTarget.GetAddressOf());
     if (FAILED(hr)) {
         return hr;
     }
@@ -132,15 +141,8 @@ HRESULT Scene::InitPipeline()
 {
     auto& devResources = _Module.devResources();
 
-    ComPtr<ID3D11Resource> resource;
     auto hr = devResources.LoadTextureFromResource(_Module.m_hInstResource, IDR_TEXTURE,
-                                                   resource.GetAddressOf(),
                                                    m_textureView.GetAddressOf());
-    if (FAILED(hr)) {
-        return hr;
-    }
-
-    hr = resource.As<ID3D11Texture2D>(&m_texture);
     if (FAILED(hr)) {
         return hr;
     }
@@ -155,41 +157,63 @@ HRESULT Scene::InitPipeline()
     sd.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
     sd.MaxLOD = D3D11_FLOAT32_MAX;
 
-    hr = devResources.CreateSamplerState(&sd, &m_samplerState);
+    hr = devResources.CreateSamplerState(&sd, m_samplerState.GetAddressOf());
     if (FAILED(hr)) {
         return false;
     }
 
+    hr = devResources.CreateBuffer(sizeof(LightBuffer),
+                                   D3D11_BIND_CONSTANT_BUFFER,
+                                   D3D11_USAGE_DYNAMIC,
+                                   D3D11_CPU_ACCESS_WRITE,
+                                   m_lightBuffer.GetAddressOf());
+
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    hr = m_context->Map(m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    auto* buffer = static_cast<LightBuffer*>(mappedResource.pData);
+    buffer->diffuseColor = { 1.0f, 0.8f, 0.8f, 1.0f };
+    buffer->lightDirection = { 0.0f, 0.0f, 1.0f };
+
+    m_context->Unmap(m_lightBuffer.Get(), 0);
+    m_context->PSSetConstantBuffers(0, 1, m_lightBuffer.GetAddressOf());
+
     hr = devResources.CreateVertexShader(VertexShaderBytecode,
                                          _countof(VertexShaderBytecode) * sizeof(BYTE),
-                                         &m_vertexShader);
+                                         m_vertexShader.GetAddressOf());
     if (FAILED(hr)) {
         return hr;
     }
 
     hr = devResources.CreatePixelShader(PixelShaderBytecode,
                                         _countof(PixelShaderBytecode) * sizeof(BYTE),
-                                        &m_pixelShader);
+                                        m_pixelShader.GetAddressOf());
     if (FAILED(hr)) {
         return hr;
     }
 
     m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
-
     m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+    m_context->PSSetShaderResources(0, 1, m_textureView.GetAddressOf());
 
-    auto* pTextureView = m_textureView.Get();
-    m_context->PSSetShaderResources(0, 1, &pTextureView);
-
-    m_context->PSSetSamplers(0, 1, &m_samplerState);
+    m_context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
 
     D3D11_INPUT_ELEMENT_DESC ied[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
     };
 
     hr = devResources.CreateInputLayout(ied, _countof(ied), VertexShaderBytecode,
-                                        _countof(VertexShaderBytecode) * sizeof(BYTE), &m_inputLayout);
+                                        _countof(VertexShaderBytecode) * sizeof(BYTE),
+                                        m_inputLayout.GetAddressOf());
     if (FAILED(hr)) {
         return hr;
     }
@@ -210,7 +234,7 @@ void Scene::SetViewport(int cx, int cy)
     m_context->RSSetViewports(1, &viewport);
 }
 
-void Scene::Render()
+HRESULT Scene::Render()
 {
     m_context->OMSetRenderTargets(1, m_renderTarget.GetAddressOf(), nullptr);
 
@@ -232,17 +256,19 @@ void Scene::Render()
     m_context->DrawIndexed(_countof(indices), 0, 0);
 
     // flip the back buffer and front buffer
-    m_swapChain->Present(1, 0);
+    auto hr = m_swapChain->Present(1, 0);
+
+    return hr;
 }
 
 void Scene::Destroy()
 {
     m_samplerState.Reset();
     m_textureView.Reset();
-    m_texture.Reset();
     m_inputLayout.Reset();
     m_vertexShader.Reset();
     m_pixelShader.Reset();
+    m_lightBuffer.Reset();
     m_indexBuffer.Reset();
     m_vertexBuffer.Reset();
     m_renderTarget.Reset();

@@ -95,7 +95,8 @@ HRESULT DevResources::CreateRenderTarget(ID3D11Texture2D* pTexture, ID3D11Render
     return hr;
 }
 
-HRESULT DevResources::CreateBuffer(UINT byteWidth, UINT bindFlags, ID3D11Buffer** ppBuffer)
+HRESULT DevResources::CreateBuffer(UINT byteWidth, UINT bindFlags, D3D11_USAGE usage, UINT accessFlags,
+                                   ID3D11Buffer** ppBuffer)
 {
     ATLASSERT(ppBuffer);
     ATLASSERT(m_device);
@@ -105,13 +106,16 @@ HRESULT DevResources::CreateBuffer(UINT byteWidth, UINT bindFlags, ID3D11Buffer*
     D3D11_BUFFER_DESC bd{};
     bd.ByteWidth = byteWidth;
     bd.BindFlags = bindFlags;
+    bd.CPUAccessFlags = accessFlags;
+    bd.Usage = usage;
 
     auto hr = m_device->CreateBuffer(&bd, nullptr, ppBuffer);
 
     return hr;
 }
 
-HRESULT DevResources::CreateBuffer(const void* pSysMem, UINT byteWidth, UINT bindFlags, ID3D11Buffer** ppBuffer)
+HRESULT DevResources::CreateBuffer(const void* pSysMem, UINT byteWidth, UINT bindFlags, D3D11_USAGE usage,
+                                   UINT accessFlags, ID3D11Buffer** ppBuffer)
 {
     ATLASSERT(pSysMem);
     ATLASSERT(ppBuffer);
@@ -122,28 +126,12 @@ HRESULT DevResources::CreateBuffer(const void* pSysMem, UINT byteWidth, UINT bin
     D3D11_BUFFER_DESC bd{};
     bd.ByteWidth = byteWidth;
     bd.BindFlags = bindFlags;
+    bd.CPUAccessFlags = accessFlags;
+    bd.Usage = usage;
 
     D3D11_SUBRESOURCE_DATA srd{ pSysMem, 0, 0 };
 
     auto hr = m_device->CreateBuffer(&bd, &srd, ppBuffer);
-
-    return hr;
-}
-
-HRESULT DevResources::CreateShaderResourceView(ID3D11Resource* pResource, DXGI_FORMAT format,
-                                               D3D11_SRV_DIMENSION viewDimension,
-                                               ID3D11ShaderResourceView** ppShaderResourceView)
-{
-    ATLASSERT(pResource);
-    ATLASSERT(ppShaderResourceView);
-    ATLASSERT(m_device);
-
-    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-    srvDesc.Format = format;
-    srvDesc.ViewDimension = viewDimension;
-    srvDesc.Texture2D.MipLevels = 1;
-
-    auto hr = m_device->CreateShaderResourceView(pResource, &srvDesc, ppShaderResourceView);
 
     return hr;
 }
@@ -159,15 +147,13 @@ HRESULT DevResources::CreateSamplerState(D3D11_SAMPLER_DESC* sd, ID3D11SamplerSt
     return hr;
 }
 
-HRESULT DevResources::LoadTextureFromResource(HINSTANCE hInstance, INT nResourceID, ID3D11Resource** ppTexture,
-    ID3D11ShaderResourceView** ppTextureView)
+HRESULT DevResources::LoadTextureFromResource(HINSTANCE hInstance, INT nResourceID,
+                                              ID3D11ShaderResourceView** ppTextureView)
 {
     ATLASSERT(hInstance);
-    ATLASSERT(ppTexture);
     ATLASSERT(ppTextureView);
     ATLASSERT(m_device);
 
-    *ppTexture = nullptr;
     *ppTextureView = nullptr;
 
     TextureLoader loader;
@@ -180,7 +166,7 @@ HRESULT DevResources::LoadTextureFromResource(HINSTANCE hInstance, INT nResource
         m_device.Get(),
         loader.dds(),
         loader.size(),
-        ppTexture,
+        nullptr,
         ppTextureView);
 
     return hr;
