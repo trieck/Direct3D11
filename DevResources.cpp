@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "DevResources.h"
-#include "TextureLoader.h"
+#include "ResourceLoader.h"
 #include <DDSTextureLoader.h>
 
 DevResources::~DevResources()
@@ -156,15 +156,15 @@ HRESULT DevResources::LoadTextureFromResource(HINSTANCE hInstance, INT nResource
 
     *ppTextureView = nullptr;
 
-    TextureLoader loader;
-    auto hr = loader.Load(hInstance, nResourceID);
+    ResourceLoader loader;
+    auto hr = loader.Load(hInstance, nResourceID, L"DDS");
     if (FAILED(hr)) {
         return hr;
     }
 
     hr = CreateDDSTextureFromMemory(
         m_device.Get(),
-        loader.dds(),
+        loader.data(),
         loader.size(),
         nullptr,
         ppTextureView);

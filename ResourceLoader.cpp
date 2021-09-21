@@ -1,15 +1,15 @@
 #include "stdafx.h"
-#include "TextureLoader.h"
+#include "ResourceLoader.h"
 
 /////////////////////////////////////////////////////////////////////////////
-HRESULT TextureLoader::Load(HINSTANCE hInstance, INT nResourceID)
+HRESULT ResourceLoader::Load(HINSTANCE hInstance, INT nResourceID, LPCWSTR type)
 {
     ATLASSERT(hInstance);
 
-    m_pDDS = nullptr;
+    m_pData = nullptr;
     m_size = 0;
 
-    auto hResInfo = FindResource(hInstance, MAKEINTRESOURCE(nResourceID), L"DDS");
+    auto hResInfo = FindResource(hInstance, MAKEINTRESOURCE(nResourceID), type);
     if (hResInfo == nullptr) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
@@ -21,20 +21,20 @@ HRESULT TextureLoader::Load(HINSTANCE hInstance, INT nResourceID)
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
-    m_pDDS = static_cast<LPBYTE>(LockResource(hResData));
-    if (m_pDDS == nullptr) {
+    m_pData = static_cast<LPBYTE>(LockResource(hResData));
+    if (m_pData == nullptr) {
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
     return S_OK;
 }
 
-LPCBYTE TextureLoader::dds() const
+LPCBYTE ResourceLoader::data() const
 {
-    return m_pDDS;
+    return m_pData;
 }
 
-size_t TextureLoader::size() const
+size_t ResourceLoader::size() const
 {
     return m_size;
 }

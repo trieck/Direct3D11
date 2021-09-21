@@ -14,6 +14,13 @@ struct Vertex
     XMFLOAT3 normal;
 };
 
+struct alignas(16) MatrixBuffer
+{
+    XMMATRIX world;
+    XMMATRIX view;
+    XMMATRIX projection;
+};
+
 struct alignas(16) LightBuffer
 {
     XMFLOAT4 diffuseColor;
@@ -27,8 +34,7 @@ static constexpr Vertex vertices[] = {
 
     { { -0.5f, 0.5f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
     { { 0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f } },
-    { { -0.5f, -0.5f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
-
+    { { -0.5f, -0.5f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } }
 };
 
 static constexpr ULONG indices[] = {
@@ -40,11 +46,14 @@ Scene::~Scene()
     Destroy();
 }
 
-HRESULT Scene::Initialize(HWND hWnd, int cx, int cy)
+HRESULT Scene::Initialize(HWND hWnd, int width, int height)
 {
     ATLASSERT(IsWindow(hWnd));
 
     Destroy();
+
+    // Set the initial position of the camera
+    m_camera.SetPosition({ 0.0f, 0.0f, -2.0f });
 
     auto& devResources = _Module.devResources();
 
@@ -53,7 +62,7 @@ HRESULT Scene::Initialize(HWND hWnd, int cx, int cy)
         return E_FAIL;
     }
 
-    auto hr = CreateView(hWnd, cx, cy);
+    auto hr = CreateView(hWnd, width, height);
     if (FAILED(hr)) {
         return hr;
     }
@@ -80,7 +89,7 @@ HRESULT Scene::Initialize(HWND hWnd, int cx, int cy)
     return hr;
 }
 
-HRESULT Scene::CreateView(HWND hWnd, int cx, int cy)
+HRESULT Scene::CreateView(HWND hWnd, int width, int height)
 {
     auto& devResources = _Module.devResources();
 
@@ -103,12 +112,12 @@ HRESULT Scene::CreateView(HWND hWnd, int cx, int cy)
         return hr;
     }
 
-    SetViewport(cx, cy);
+    SetView(width, height);
 
     return S_OK;
 }
 
-HRESULT Scene::Resize(int cx, int cy)
+HRESULT Scene::Resize(int width, int height)
 {
     ATLASSERT(m_swapChain);
 
@@ -116,7 +125,7 @@ HRESULT Scene::Resize(int cx, int cy)
 
     m_renderTarget.Reset();
 
-    auto hr = m_swapChain->ResizeBuffers(2, cx, cy, DXGI_FORMAT_UNKNOWN, 0);
+    auto hr = m_swapChain->ResizeBuffers(2, width, height, DXGI_FORMAT_UNKNOWN, 0);
     if (FAILED(hr)) {
         return hr;
     }
@@ -132,7 +141,7 @@ HRESULT Scene::Resize(int cx, int cy)
         return hr;
     }
 
-    SetViewport(cx, cy);
+    SetView(width, height);
 
     return S_OK;
 }
@@ -162,6 +171,31 @@ HRESULT Scene::InitPipeline()
         return false;
     }
 
+    hr = devResources.CreateBuffer(sizeof(MatrixBuffer),
+                                   D3D11_BIND_CONSTANT_BUFFER,
+                                   D3D11_USAGE_DYNAMIC,
+                                   D3D11_CPU_ACCESS_WRITE,
+                                   m_matrixBuffer.GetAddressOf());
+    if (FAILED(hr)) {
+        return false;
+    }
+
+    D3D11_MAPPED_SUBRESOURCE mappedResource{};
+    hr = m_context->Map(m_matrixBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    if (FAILED(hr)) {
+        return false;
+    }
+
+    auto cameraView = m_camera.view();
+
+    auto* matrixBuffer = static_cast<MatrixBuffer*>(mappedResource.pData);
+    matrixBuffer->world = XMMatrixTranspose(m_worldMatrix);
+    matrixBuffer->view = XMMatrixTranspose(cameraView);
+    matrixBuffer->projection = XMMatrixTranspose(m_projectionMatrix);
+
+    m_context->Unmap(m_matrixBuffer.Get(), 0);
+    m_context->VSSetConstantBuffers(0, 1, m_matrixBuffer.GetAddressOf());
+
     hr = devResources.CreateBuffer(sizeof(LightBuffer),
                                    D3D11_BIND_CONSTANT_BUFFER,
                                    D3D11_USAGE_DYNAMIC,
@@ -172,15 +206,14 @@ HRESULT Scene::InitPipeline()
         return hr;
     }
 
-    D3D11_MAPPED_SUBRESOURCE mappedResource;
     hr = m_context->Map(m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
     if (FAILED(hr)) {
         return hr;
     }
 
-    auto* buffer = static_cast<LightBuffer*>(mappedResource.pData);
-    buffer->diffuseColor = { 1.0f, 0.8f, 0.8f, 1.0f };
-    buffer->lightDirection = { 0.0f, 0.0f, 1.0f };
+    auto* lightBuffer = static_cast<LightBuffer*>(mappedResource.pData);
+    lightBuffer->diffuseColor = { 1.0f, 0.5f, 0.75f, 1.0f };
+    lightBuffer->lightDirection = { 0.0f, 0.0f, 1.0f };
 
     m_context->Unmap(m_lightBuffer.Get(), 0);
     m_context->PSSetConstantBuffers(0, 1, m_lightBuffer.GetAddressOf());
@@ -202,7 +235,6 @@ HRESULT Scene::InitPipeline()
     m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
     m_context->PSSetShaderResources(0, 1, m_textureView.GetAddressOf());
-
     m_context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
 
     D3D11_INPUT_ELEMENT_DESC ied[] = {
@@ -223,15 +255,31 @@ HRESULT Scene::InitPipeline()
     return S_OK;
 }
 
-void Scene::SetViewport(int cx, int cy)
+void Scene::SetView(int width, int height)
 {
     D3D11_VIEWPORT viewport{};
     viewport.TopLeftX = 0;
     viewport.TopLeftY = 0;
-    viewport.Width = static_cast<float>(cx);
-    viewport.Height = static_cast<float>(cy);
+    viewport.Width = static_cast<float>(width);
+    viewport.Height = static_cast<float>(height);
 
     m_context->RSSetViewports(1, &viewport);
+
+    if (height != 0) {
+        auto fieldOfView = XM_PI / 4.0f;
+        auto aspectRatio = viewport.Width / viewport.Height;
+
+        // Create the projection matrix for 3D rendering
+        static constexpr float nearZ = 0.1f;
+        static constexpr float farZ = 1000.0f;
+        m_projectionMatrix = XMMatrixPerspectiveFovLH(fieldOfView, aspectRatio, nearZ, farZ);
+
+        // Initialize the world matrix to the identity matrix
+        m_worldMatrix = XMMatrixIdentity();
+
+        // Create an orthographic projection matrix for 2D rendering
+        m_orthoMatrix = XMMatrixOrthographicLH(viewport.Width, viewport.Height, nearZ, farZ);
+    }
 }
 
 HRESULT Scene::Render()
@@ -269,6 +317,7 @@ void Scene::Destroy()
     m_vertexShader.Reset();
     m_pixelShader.Reset();
     m_lightBuffer.Reset();
+    m_matrixBuffer.Reset();
     m_indexBuffer.Reset();
     m_vertexBuffer.Reset();
     m_renderTarget.Reset();
