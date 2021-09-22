@@ -41,6 +41,17 @@ static constexpr ULONG indices[] = {
     0, 1, 2, 3, 4, 5
 };
 
+static float wrapAngle(float theta)
+{
+    theta = fmodf(theta, XM_2PI);
+
+    if (theta > XM_PI) {
+        theta = theta - XM_2PI;
+    }
+
+    return theta;
+}
+
 Scene::~Scene()
 {
     Destroy();
@@ -51,6 +62,9 @@ HRESULT Scene::Initialize(HWND hWnd, int width, int height)
     ATLASSERT(IsWindow(hWnd));
 
     Destroy();
+
+    // Initialize the world matrix to the identity matrix
+    m_worldMatrix = XMMatrixIdentity();
 
     // Set the initial position of the camera
     m_camera.SetPosition({ 0.0f, 0.0f, -2.0f });
@@ -117,6 +131,14 @@ HRESULT Scene::CreateView(HWND hWnd, int width, int height)
     return S_OK;
 }
 
+HRESULT Scene::EndScene()
+{
+    // flip the back buffer and front buffer
+    auto hr = m_swapChain->Present(1, 0);
+
+    return hr;
+}
+
 HRESULT Scene::Resize(int width, int height)
 {
     ATLASSERT(m_swapChain);
@@ -168,7 +190,7 @@ HRESULT Scene::InitPipeline()
 
     hr = devResources.CreateSamplerState(&sd, m_samplerState.GetAddressOf());
     if (FAILED(hr)) {
-        return false;
+        return hr;
     }
 
     hr = devResources.CreateBuffer(sizeof(MatrixBuffer),
@@ -177,24 +199,8 @@ HRESULT Scene::InitPipeline()
                                    D3D11_CPU_ACCESS_WRITE,
                                    m_matrixBuffer.GetAddressOf());
     if (FAILED(hr)) {
-        return false;
+        return hr;
     }
-
-    D3D11_MAPPED_SUBRESOURCE mappedResource{};
-    hr = m_context->Map(m_matrixBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    if (FAILED(hr)) {
-        return false;
-    }
-
-    auto cameraView = m_camera.view();
-
-    auto* matrixBuffer = static_cast<MatrixBuffer*>(mappedResource.pData);
-    matrixBuffer->world = XMMatrixTranspose(m_worldMatrix);
-    matrixBuffer->view = XMMatrixTranspose(cameraView);
-    matrixBuffer->projection = XMMatrixTranspose(m_projectionMatrix);
-
-    m_context->Unmap(m_matrixBuffer.Get(), 0);
-    m_context->VSSetConstantBuffers(0, 1, m_matrixBuffer.GetAddressOf());
 
     hr = devResources.CreateBuffer(sizeof(LightBuffer),
                                    D3D11_BIND_CONSTANT_BUFFER,
@@ -206,6 +212,7 @@ HRESULT Scene::InitPipeline()
         return hr;
     }
 
+    D3D11_MAPPED_SUBRESOURCE mappedResource{};
     hr = m_context->Map(m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
     if (FAILED(hr)) {
         return hr;
@@ -255,6 +262,52 @@ HRESULT Scene::InitPipeline()
     return S_OK;
 }
 
+void Scene::Render()
+{
+    // set the vertex buffer
+    UINT stride = sizeof(Vertex);
+    UINT offset = 0;
+    m_context->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &stride, &offset);
+
+    // set the index buffer
+    m_context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+
+    // set the primitive topology
+    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    // draw vertices, starting from vertex 0
+    m_context->DrawIndexed(_countof(indices), 0, 0);
+}
+
+HRESULT Scene::UpdateModel()
+{
+    static constexpr auto rotationSpeed = XM_PI / 4.0f;
+
+    m_elapsed += m_timer.Mark();
+
+    auto theta = wrapAngle(m_elapsed * rotationSpeed);
+
+    m_worldMatrix = XMMatrixRotationY(theta);
+
+    auto cameraView = m_camera.view();
+
+    D3D11_MAPPED_SUBRESOURCE mappedResource{};
+    auto hr = m_context->Map(m_matrixBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    auto* matrixBuffer = static_cast<MatrixBuffer*>(mappedResource.pData);
+    matrixBuffer->world = XMMatrixTranspose(m_worldMatrix);
+    matrixBuffer->view = XMMatrixTranspose(cameraView);
+    matrixBuffer->projection = XMMatrixTranspose(m_projectionMatrix);
+
+    m_context->Unmap(m_matrixBuffer.Get(), 0);
+    m_context->VSSetConstantBuffers(0, 1, m_matrixBuffer.GetAddressOf());
+
+    return S_OK;
+}
+
 void Scene::SetView(int width, int height)
 {
     D3D11_VIEWPORT viewport{};
@@ -274,37 +327,23 @@ void Scene::SetView(int width, int height)
         static constexpr float farZ = 1000.0f;
         m_projectionMatrix = XMMatrixPerspectiveFovLH(fieldOfView, aspectRatio, nearZ, farZ);
 
-        // Initialize the world matrix to the identity matrix
-        m_worldMatrix = XMMatrixIdentity();
-
         // Create an orthographic projection matrix for 2D rendering
         m_orthoMatrix = XMMatrixOrthographicLH(viewport.Width, viewport.Height, nearZ, farZ);
     }
 }
 
-HRESULT Scene::Render()
+HRESULT Scene::RenderFrame()
 {
-    m_context->OMSetRenderTargets(1, m_renderTarget.GetAddressOf(), nullptr);
+    BeginScene();
 
-    // set the back buffer to deep blue
-    m_context->ClearRenderTargetView(m_renderTarget.Get(), Colors::DarkSlateBlue);
+    auto hr = UpdateModel();
+    if (FAILED(hr)) {
+        return hr;
+    }
 
-    // set the vertex buffer
-    UINT stride = sizeof(Vertex);
-    UINT offset = 0;
-    m_context->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &stride, &offset);
+    Render();
 
-    // set the index buffer
-    m_context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-
-    // set the primitive topology
-    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    // draw vertices, starting from vertex 0
-    m_context->DrawIndexed(_countof(indices), 0, 0);
-
-    // flip the back buffer and front buffer
-    auto hr = m_swapChain->Present(1, 0);
+    hr = EndScene();
 
     return hr;
 }
@@ -323,4 +362,12 @@ void Scene::Destroy()
     m_renderTarget.Reset();
     m_swapChain.Reset();
     m_context.Reset();
+}
+
+void Scene::BeginScene()
+{
+    m_context->OMSetRenderTargets(1, m_renderTarget.GetAddressOf(), nullptr);
+
+    // set the back buffer to deep blue
+    m_context->ClearRenderTargetView(m_renderTarget.Get(), Colors::DarkSlateBlue);
 }

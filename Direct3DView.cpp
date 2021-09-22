@@ -4,6 +4,8 @@
 
 extern Direct3DApp _Module;
 
+static constexpr UINT_PTR TIMER_ID = 101;
+
 BOOL Direct3DView::PreTranslateMessage(MSG*)
 {
     return FALSE;
@@ -16,11 +18,17 @@ LRESULT Direct3DView::OnCreate(LPCREATESTRUCT cs)
         return -1;
     }
 
+    m_scene.RenderFrame();
+
+    SetTimer(TIMER_ID, 50);
+
     return 0;
 }
 
 LRESULT Direct3DView::OnDestroy()
 {
+    KillTimer(TIMER_ID);
+
     return 0;
 }
 
@@ -31,9 +39,11 @@ LRESULT Direct3DView::OnSize(WPARAM /*wParam*/, const CSize& sz)
     return 0;
 }
 
-void Direct3DView::OnPaint(CDCHandle)
+LRESULT Direct3DView::OnTimer(UINT_PTR id)
 {
-    CPaintDC dc(*this);
+    if (id == TIMER_ID) {
+        m_scene.RenderFrame();
+    }
 
-    m_scene.Render();
+    return 0;
 }

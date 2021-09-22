@@ -1,5 +1,6 @@
 #pragma once
 #include "Camera.h"
+#include "FrameTimer.h"
 
 class Scene
 {
@@ -9,12 +10,16 @@ public:
 
     HRESULT Initialize(HWND hWnd, int width, int height);
     HRESULT Resize(int width, int height);
-    HRESULT Render();
+    HRESULT RenderFrame();
     
 private:
     void Destroy();
+    void BeginScene();
     HRESULT CreateView(HWND hWnd, int width, int height);
+    HRESULT EndScene();
     HRESULT InitPipeline();
+    void Render();
+    HRESULT UpdateModel();
     void SetView(int width, int height);
 
     ComPtr<ID3D11DeviceContext1> m_context;
@@ -30,10 +35,12 @@ private:
     ComPtr<ID3D11ShaderResourceView> m_textureView;
     ComPtr<ID3D11SamplerState> m_samplerState;
 
-    XMMATRIX m_projectionMatrix;
-    XMMATRIX m_worldMatrix;
-    XMMATRIX m_orthoMatrix;
+    XMMATRIX m_projectionMatrix{};
+    XMMATRIX m_worldMatrix{};
+    XMMATRIX m_orthoMatrix{};
 
     Camera m_camera;
+    FrameTimer m_timer;
+    float m_elapsed = 0.0f;
 };
 
