@@ -7,13 +7,6 @@
 
 extern Direct3DApp _Module;
 
-struct Vertex
-{
-    XMFLOAT3 position;
-    XMFLOAT2 texture;
-    XMFLOAT3 normal;
-};
-
 struct alignas(16) MatrixBuffer
 {
     XMMATRIX world;
@@ -27,23 +20,9 @@ struct alignas(16) LightBuffer
     XMFLOAT3 lightDirection;
 };
 
-static constexpr Vertex vertices[] = {
-    { { 0.5f, 0.5f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
-    { { 0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f } },
-    { { -0.5f, 0.5f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
-
-    { { -0.5f, 0.5f, 0.0f }, { 0.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } },
-    { { 0.5f, -0.5f, 0.0f }, { 0.5f, 0.0f }, { 0.0f, 0.0f, -1.0f } },
-    { { -0.5f, -0.5f, 0.0f }, { 1.0f, 1.0f }, { 0.0f, 0.0f, -1.0f } }
-};
-
-static constexpr ULONG indices[] = {
-    0, 1, 2, 3, 4, 5
-};
-
-static float wrapAngle(float theta)
+static float computeAngle(float t)
 {
-    theta = fmodf(theta, XM_2PI);
+    auto theta = fmodf(t, XM_2PI);
 
     if (theta > XM_PI) {
         theta = theta - XM_2PI;
@@ -67,7 +46,7 @@ HRESULT Scene::Initialize(HWND hWnd, int width, int height)
     m_worldMatrix = XMMatrixIdentity();
 
     // Set the initial position of the camera
-    m_camera.SetPosition({ 0.0f, 0.0f, -2.0f });
+    m_camera.SetPosition({ 0.0f, 0.0f, -6.0f });
 
     auto& devResources = _Module.devResources();
 
@@ -80,21 +59,7 @@ HRESULT Scene::Initialize(HWND hWnd, int width, int height)
     if (FAILED(hr)) {
         return hr;
     }
-
-    hr = devResources.CreateBuffer(vertices, _countof(vertices) * sizeof(Vertex),
-                                   D3D11_BIND_VERTEX_BUFFER,
-                                   D3D11_USAGE_DEFAULT, 0, m_vertexBuffer.GetAddressOf());
-    if (FAILED(hr)) {
-        return hr;
-    }
-
-    hr = devResources.CreateBuffer(indices, _countof(indices) * sizeof(ULONG),
-                                   D3D11_BIND_INDEX_BUFFER,
-                                   D3D11_USAGE_DEFAULT, 0, m_indexBuffer.GetAddressOf());
-    if (FAILED(hr)) {
-        return hr;
-    }
-
+    
     hr = InitPipeline();
     if (FAILED(hr)) {
         return hr;
@@ -172,8 +137,15 @@ HRESULT Scene::InitPipeline()
 {
     auto& devResources = _Module.devResources();
 
-    auto hr = devResources.LoadTextureFromResource(_Module.m_hInstResource, IDR_TEXTURE,
-                                                   m_textureView.GetAddressOf());
+    auto hr = m_model.Load(_Module.m_hInstResource, 
+        IDR_MODEL, L"TEXT",
+        IDR_TEXTURE, L"DDS");
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    hr = devResources.LoadTextureFromResource(_Module.m_hInstResource, IDR_TEXTURE,
+                                                   L"DDS", m_textureView.GetAddressOf());
     if (FAILED(hr)) {
         return hr;
     }
@@ -219,7 +191,7 @@ HRESULT Scene::InitPipeline()
     }
 
     auto* lightBuffer = static_cast<LightBuffer*>(mappedResource.pData);
-    lightBuffer->diffuseColor = { 1.0f, 0.5f, 0.75f, 1.0f };
+    lightBuffer->diffuseColor = { 1.0f, 1.0f, 1.0f, 1.0f };
     lightBuffer->lightDirection = { 0.0f, 0.0f, 1.0f };
 
     m_context->Unmap(m_lightBuffer.Get(), 0);
@@ -264,28 +236,16 @@ HRESULT Scene::InitPipeline()
 
 void Scene::Render()
 {
-    // set the vertex buffer
-    UINT stride = sizeof(Vertex);
-    UINT offset = 0;
-    m_context->IASetVertexBuffers(0, 1, m_vertexBuffer.GetAddressOf(), &stride, &offset);
-
-    // set the index buffer
-    m_context->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-
-    // set the primitive topology
-    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    // draw vertices, starting from vertex 0
-    m_context->DrawIndexed(_countof(indices), 0, 0);
+    m_model.Render(m_context.Get());
 }
 
 HRESULT Scene::UpdateModel()
 {
-    static constexpr auto rotationSpeed = XM_PI / 4.0f;
+    static constexpr auto rotationSpeed = 1.0f;
 
     m_elapsed += m_timer.Mark();
 
-    auto theta = wrapAngle(m_elapsed * rotationSpeed);
+    auto theta = computeAngle(m_elapsed * rotationSpeed);
 
     m_worldMatrix = XMMatrixRotationY(theta);
 
@@ -357,8 +317,6 @@ void Scene::Destroy()
     m_pixelShader.Reset();
     m_lightBuffer.Reset();
     m_matrixBuffer.Reset();
-    m_indexBuffer.Reset();
-    m_vertexBuffer.Reset();
     m_renderTarget.Reset();
     m_swapChain.Reset();
     m_context.Reset();

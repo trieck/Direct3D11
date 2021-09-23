@@ -1,6 +1,7 @@
 #pragma once
 #include "Camera.h"
 #include "FrameTimer.h"
+#include "Model.h"
 
 class Scene
 {
@@ -25,8 +26,6 @@ private:
     ComPtr<ID3D11DeviceContext1> m_context;
     ComPtr<IDXGISwapChain1> m_swapChain;
     ComPtr<ID3D11RenderTargetView> m_renderTarget;
-    ComPtr<ID3D11Buffer> m_vertexBuffer;
-    ComPtr<ID3D11Buffer> m_indexBuffer;
     ComPtr<ID3D11Buffer> m_matrixBuffer;
     ComPtr<ID3D11Buffer> m_lightBuffer;
     ComPtr<ID3D11VertexShader> m_vertexShader;
@@ -39,6 +38,7 @@ private:
     XMMATRIX m_worldMatrix{};
     XMMATRIX m_orthoMatrix{};
 
+    Model m_model;
     Camera m_camera;
     FrameTimer m_timer;
     float m_elapsed = 0.0f;

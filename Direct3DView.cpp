@@ -20,7 +20,7 @@ LRESULT Direct3DView::OnCreate(LPCREATESTRUCT cs)
 
     m_scene.RenderFrame();
 
-    SetTimer(TIMER_ID, 50);
+    SetTimer(TIMER_ID, 40);
 
     return 0;
 }

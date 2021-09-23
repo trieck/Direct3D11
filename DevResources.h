@@ -19,7 +19,7 @@ public:
     HRESULT CreateInputLayout(D3D11_INPUT_ELEMENT_DESC* pieds, UINT numElements, const void* byteCode,
                               SIZE_T length, ID3D11InputLayout** ppInputLayout);
     HRESULT CreateSamplerState(D3D11_SAMPLER_DESC* sd, ID3D11SamplerState** ppSamplerState);
-    HRESULT LoadTextureFromResource(HINSTANCE hInstance, INT nResourceID,
+    HRESULT LoadTextureFromResource(HINSTANCE hInstance, INT nResourceID, LPCWSTR resType,
                                     ID3D11ShaderResourceView** ppTextureView);
 
 private:

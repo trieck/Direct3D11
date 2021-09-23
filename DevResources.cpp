@@ -148,7 +148,7 @@ HRESULT DevResources::CreateSamplerState(D3D11_SAMPLER_DESC* sd, ID3D11SamplerSt
 }
 
 HRESULT DevResources::LoadTextureFromResource(HINSTANCE hInstance, INT nResourceID,
-                                              ID3D11ShaderResourceView** ppTextureView)
+                                              LPCWSTR resType, ID3D11ShaderResourceView** ppTextureView)
 {
     ATLASSERT(hInstance);
     ATLASSERT(ppTextureView);
@@ -156,16 +156,17 @@ HRESULT DevResources::LoadTextureFromResource(HINSTANCE hInstance, INT nResource
 
     *ppTextureView = nullptr;
 
-    ResourceLoader loader;
-    auto hr = loader.Load(hInstance, nResourceID, L"DDS");
+    LPCBYTE pdata;
+    UINT size;
+    auto hr = ResourceLoader::Load(hInstance, nResourceID, resType, pdata, size);
     if (FAILED(hr)) {
         return hr;
     }
 
     hr = CreateDDSTextureFromMemory(
         m_device.Get(),
-        loader.data(),
-        loader.size(),
+        pdata,
+        size,
         nullptr,
         ppTextureView);
 

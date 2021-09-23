@@ -20,6 +20,10 @@
 #include <D3Dcompiler.h>
 #include <wrl.h>
 
+#include <string>
+#include <sstream>
+#include <vector>
+
 using namespace Microsoft::WRL;
 using namespace DirectX;
 using namespace Wrappers;
