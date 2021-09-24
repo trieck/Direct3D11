@@ -12,7 +12,8 @@ public:
     HRESULT Initialize(HWND hWnd, int width, int height);
     HRESULT Resize(int width, int height);
     HRESULT RenderFrame();
-    
+    void Zoom(int step);
+
 private:
     void Destroy();
     void BeginScene();
@@ -21,6 +22,7 @@ private:
     HRESULT InitPipeline();
     void Render();
     HRESULT UpdateModel();
+    void SetCameraPos();
     void SetView(int width, int height);
 
     ComPtr<ID3D11DeviceContext1> m_context;
@@ -28,6 +30,7 @@ private:
     ComPtr<ID3D11RenderTargetView> m_renderTarget;
     ComPtr<ID3D11Buffer> m_matrixBuffer;
     ComPtr<ID3D11Buffer> m_lightBuffer;
+    ComPtr<ID3D11Buffer> m_cameraBuffer;
     ComPtr<ID3D11VertexShader> m_vertexShader;
     ComPtr<ID3D11PixelShader> m_pixelShader;
     ComPtr<ID3D11InputLayout> m_inputLayout;
@@ -42,5 +45,6 @@ private:
     Camera m_camera;
     FrameTimer m_timer;
     float m_elapsed = 0.0f;
+    float m_zoom = -6.0f;
 };
 

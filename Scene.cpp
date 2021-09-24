@@ -16,20 +16,17 @@ struct alignas(16) MatrixBuffer
 
 struct alignas(16) LightBuffer
 {
+    XMFLOAT4 ambientColor;
     XMFLOAT4 diffuseColor;
     XMFLOAT3 lightDirection;
+    float specularPower;
+    XMFLOAT4 specularColor;
 };
 
-static float computeAngle(float t)
+struct alignas(16) CameraBuffer
 {
-    auto theta = fmodf(t, XM_2PI);
-
-    if (theta > XM_PI) {
-        theta = theta - XM_2PI;
-    }
-
-    return theta;
-}
+    XMFLOAT3 cameraPosition;
+};
 
 Scene::~Scene()
 {
@@ -46,7 +43,7 @@ HRESULT Scene::Initialize(HWND hWnd, int width, int height)
     m_worldMatrix = XMMatrixIdentity();
 
     // Set the initial position of the camera
-    m_camera.SetPosition({ 0.0f, 0.0f, -6.0f });
+    SetCameraPos();
 
     auto& devResources = _Module.devResources();
 
@@ -184,18 +181,14 @@ HRESULT Scene::InitPipeline()
         return hr;
     }
 
-    D3D11_MAPPED_SUBRESOURCE mappedResource{};
-    hr = m_context->Map(m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    hr = devResources.CreateBuffer(sizeof(CameraBuffer),
+        D3D11_BIND_CONSTANT_BUFFER,
+        D3D11_USAGE_DYNAMIC,
+        D3D11_CPU_ACCESS_WRITE,
+        m_cameraBuffer.GetAddressOf());
     if (FAILED(hr)) {
         return hr;
     }
-
-    auto* lightBuffer = static_cast<LightBuffer*>(mappedResource.pData);
-    lightBuffer->diffuseColor = { 1.0f, 1.0f, 1.0f, 1.0f };
-    lightBuffer->lightDirection = { 0.0f, 0.0f, 1.0f };
-
-    m_context->Unmap(m_lightBuffer.Get(), 0);
-    m_context->PSSetConstantBuffers(0, 1, m_lightBuffer.GetAddressOf());
 
     hr = devResources.CreateVertexShader(VertexShaderBytecode,
                                          _countof(VertexShaderBytecode) * sizeof(BYTE),
@@ -245,7 +238,7 @@ HRESULT Scene::UpdateModel()
 
     m_elapsed += m_timer.Mark();
 
-    auto theta = computeAngle(m_elapsed * rotationSpeed);
+    auto theta = fmodf(m_elapsed * rotationSpeed, XM_2PI);
 
     m_worldMatrix = XMMatrixRotationY(theta);
 
@@ -265,7 +258,38 @@ HRESULT Scene::UpdateModel()
     m_context->Unmap(m_matrixBuffer.Get(), 0);
     m_context->VSSetConstantBuffers(0, 1, m_matrixBuffer.GetAddressOf());
 
+    hr = m_context->Map(m_cameraBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    auto* cameraBuffer = static_cast<CameraBuffer*>(mappedResource.pData);
+    cameraBuffer->cameraPosition = m_camera.position();
+
+    m_context->Unmap(m_cameraBuffer.Get(), 0);
+    m_context->VSSetConstantBuffers(1, 1, m_cameraBuffer.GetAddressOf());
+
+    hr = m_context->Map(m_lightBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    auto* lightBuffer = static_cast<LightBuffer*>(mappedResource.pData);
+    lightBuffer->ambientColor = { 0.15f, 0.15f, 0.15f, 1.0f };
+    lightBuffer->diffuseColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+    lightBuffer->lightDirection = { 0.0f, 0.0f, 1.0f };
+    lightBuffer->specularColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+    lightBuffer->specularPower = 32.0f;
+
+    m_context->Unmap(m_lightBuffer.Get(), 0);
+    m_context->PSSetConstantBuffers(0, 1, m_lightBuffer.GetAddressOf());
+
     return S_OK;
+}
+
+void Scene::SetCameraPos()
+{
+    m_camera.SetPosition({ 0.0f, 0.0f, m_zoom });
 }
 
 void Scene::SetView(int width, int height)
@@ -308,6 +332,13 @@ HRESULT Scene::RenderFrame()
     return hr;
 }
 
+void Scene::Zoom(int step)
+{
+    m_zoom += static_cast<float>(step);
+
+    SetCameraPos();
+}
+
 void Scene::Destroy()
 {
     m_samplerState.Reset();
@@ -315,6 +346,7 @@ void Scene::Destroy()
     m_inputLayout.Reset();
     m_vertexShader.Reset();
     m_pixelShader.Reset();
+    m_cameraBuffer.Reset();
     m_lightBuffer.Reset();
     m_matrixBuffer.Reset();
     m_renderTarget.Reset();

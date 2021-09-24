@@ -11,6 +11,7 @@ public:
         MSG_WM_CREATE(OnCreate)
         MSG_WM_SIZE(OnSize)
         MSG_WM_TIMER(OnTimer)
+        MSG_WM_MOUSEWHEEL(OnMouseWheel)
     END_MSG_MAP()
 
     Direct3DView() = default;
@@ -20,6 +21,7 @@ public:
     LRESULT OnDestroy();
     LRESULT OnSize(WPARAM wParam, const CSize& sz);
     LRESULT OnTimer(UINT_PTR id);
+    LRESULT OnMouseWheel(UINT, short, const CPoint& pt);
     
 private:
     Scene m_scene;

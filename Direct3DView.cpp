@@ -47,3 +47,12 @@ LRESULT Direct3DView::OnTimer(UINT_PTR id)
 
     return 0;
 }
+
+LRESULT Direct3DView::OnMouseWheel(UINT vKeys, short distance, const CPoint& pt)
+{
+    int step = distance / WHEEL_DELTA;
+
+    m_scene.Zoom(step);
+
+    return 0;
+}
