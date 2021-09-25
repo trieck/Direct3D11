@@ -39,7 +39,6 @@ HRESULT Scene::Initialize(HWND hWnd, int width, int height)
 
     Destroy();
 
-    // Initialize the world matrix to the identity matrix
     m_worldMatrix = XMMatrixIdentity();
 
     // Set the initial position of the camera
@@ -56,7 +55,7 @@ HRESULT Scene::Initialize(HWND hWnd, int width, int height)
     if (FAILED(hr)) {
         return hr;
     }
-    
+
     hr = InitPipeline();
     if (FAILED(hr)) {
         return hr;
@@ -68,9 +67,6 @@ HRESULT Scene::Initialize(HWND hWnd, int width, int height)
 HRESULT Scene::CreateView(HWND hWnd, int width, int height)
 {
     auto& devResources = _Module.devResources();
-
-    m_renderTarget.Reset();
-    m_swapChain.Reset();
 
     auto hr = devResources.CreateSwapChain(hWnd, m_swapChain.GetAddressOf());
     if (FAILED(hr)) {
@@ -87,6 +83,18 @@ HRESULT Scene::CreateView(HWND hWnd, int width, int height)
     if (FAILED(hr)) {
         return hr;
     }
+
+    hr = CreateDepthStencil(width, height);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    hr = devResources.CreateRasterizerState(&m_rasterState);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    m_context->RSSetState(m_rasterState.Get());
 
     SetView(width, height);
 
@@ -125,6 +133,11 @@ HRESULT Scene::Resize(int width, int height)
         return hr;
     }
 
+    hr = CreateDepthStencil(width, height);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
     SetView(width, height);
 
     return S_OK;
@@ -134,15 +147,15 @@ HRESULT Scene::InitPipeline()
 {
     auto& devResources = _Module.devResources();
 
-    auto hr = m_model.Load(_Module.m_hInstResource, 
-        IDR_MODEL, L"TEXT",
-        IDR_TEXTURE, L"DDS");
+    auto hr = m_model.Load(_Module.m_hInstResource,
+                           IDR_MODEL, L"TEXT",
+                           IDR_TEXTURE, L"DDS");
     if (FAILED(hr)) {
         return hr;
     }
 
     hr = devResources.LoadTextureFromResource(_Module.m_hInstResource, IDR_TEXTURE,
-                                                   L"DDS", m_textureView.GetAddressOf());
+                                              L"DDS", m_textureView.GetAddressOf());
     if (FAILED(hr)) {
         return hr;
     }
@@ -182,10 +195,10 @@ HRESULT Scene::InitPipeline()
     }
 
     hr = devResources.CreateBuffer(sizeof(CameraBuffer),
-        D3D11_BIND_CONSTANT_BUFFER,
-        D3D11_USAGE_DYNAMIC,
-        D3D11_CPU_ACCESS_WRITE,
-        m_cameraBuffer.GetAddressOf());
+                                   D3D11_BIND_CONSTANT_BUFFER,
+                                   D3D11_USAGE_DYNAMIC,
+                                   D3D11_CPU_ACCESS_WRITE,
+                                   m_cameraBuffer.GetAddressOf());
     if (FAILED(hr)) {
         return hr;
     }
@@ -238,9 +251,11 @@ HRESULT Scene::UpdateModel()
 
     m_elapsed += m_timer.Mark();
 
-    auto theta = fmodf(m_elapsed * rotationSpeed, XM_2PI);
+    auto thetaX = XMConvertToRadians(5.0f * static_cast<float>(m_rotXPos));
+    auto thetaZ = XMConvertToRadians(5.0f * static_cast<float>(m_rotZPos));
+    auto thetaY = fmodf(m_elapsed * rotationSpeed, XM_2PI);
 
-    m_worldMatrix = XMMatrixRotationY(theta);
+    m_worldMatrix = XMMatrixRotationRollPitchYaw(thetaX, thetaY, thetaZ);
 
     auto cameraView = m_camera.view();
 
@@ -339,8 +354,22 @@ void Scene::Zoom(int step)
     SetCameraPos();
 }
 
+void Scene::RotateX(int step)
+{
+    m_rotXPos += step;
+}
+
+void Scene::RotateZ(int step)
+{
+    m_rotZPos += step;
+}
+
 void Scene::Destroy()
 {
+    m_rasterState.Reset();
+    m_depthStencilView.Reset();
+    m_depthStencilState.Reset();
+    m_depthStencilBuffer.Reset();
     m_samplerState.Reset();
     m_textureView.Reset();
     m_inputLayout.Reset();
@@ -356,8 +385,31 @@ void Scene::Destroy()
 
 void Scene::BeginScene()
 {
-    m_context->OMSetRenderTargets(1, m_renderTarget.GetAddressOf(), nullptr);
+    m_context->OMSetRenderTargets(1, m_renderTarget.GetAddressOf(), m_depthStencilView.Get());
 
     // set the back buffer to deep blue
     m_context->ClearRenderTargetView(m_renderTarget.Get(), Colors::DarkSlateBlue);
+
+    // clear the depth buffer
+    m_context->ClearDepthStencilView(m_depthStencilView.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+}
+
+HRESULT Scene::CreateDepthStencil(int width, int height)
+{
+    auto& devResources = _Module.devResources();
+
+    m_depthStencilBuffer.Reset();
+    m_depthStencilState.Reset();
+    m_depthStencilView.Reset();
+
+    auto hr = devResources.CreateDepthStencil(width, height, m_depthStencilBuffer.GetAddressOf(),
+                                              m_depthStencilState.GetAddressOf(),
+                                              m_depthStencilView.GetAddressOf());
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    m_context->OMSetDepthStencilState(m_depthStencilState.Get(), 1);
+
+    return S_OK;
 }

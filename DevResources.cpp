@@ -173,6 +173,87 @@ HRESULT DevResources::LoadTextureFromResource(HINSTANCE hInstance, INT nResource
     return hr;
 }
 
+HRESULT DevResources::CreateDepthStencil(UINT width, UINT height, ID3D11Texture2D** ppStencilBuffer,
+                                         ID3D11DepthStencilState** ppStencilState,
+                                         ID3D11DepthStencilView** ppStencilView)
+{
+    ATLASSERT(ppStencilBuffer);
+    ATLASSERT(ppStencilState);
+    ATLASSERT(ppStencilView);
+    ATLASSERT(m_device);
+
+    *ppStencilBuffer = nullptr;
+    *ppStencilState = nullptr;
+
+    D3D11_TEXTURE2D_DESC dbd{};
+    dbd.Width = width;
+    dbd.Height = height;
+    dbd.MipLevels = 1;
+    dbd.ArraySize = 1;
+    dbd.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    dbd.SampleDesc.Count = 1;
+    dbd.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+
+    auto hr = m_device->CreateTexture2D(&dbd, nullptr, ppStencilBuffer);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    D3D11_DEPTH_STENCIL_DESC dsc{};
+    dsc.DepthEnable = TRUE;
+    dsc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    dsc.DepthFunc = D3D11_COMPARISON_LESS;
+    dsc.StencilEnable = TRUE;
+    dsc.StencilReadMask = 0xFF;
+    dsc.StencilWriteMask = 0xFF;
+
+    // stencil operations if pixel is front-facing
+    dsc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    dsc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+    dsc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    dsc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+    // stencil operations if pixel is back-facing
+    dsc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    dsc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+    dsc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    dsc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+    // create the depth stencil state
+    hr = m_device->CreateDepthStencilState(&dsc, ppStencilState);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    D3D11_DEPTH_STENCIL_VIEW_DESC dsvd{};
+    dsvd.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    dsvd.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    dsvd.Texture2D.MipSlice = 0;
+
+    // create the depth stencil view
+    hr = m_device->CreateDepthStencilView(*ppStencilBuffer, &dsvd, ppStencilView);
+
+    return hr;
+}
+
+HRESULT DevResources::CreateRasterizerState(ID3D11RasterizerState** ppRasterState)
+{
+    ATLASSERT(ppRasterState);
+    ATLASSERT(m_device);
+
+    *ppRasterState = nullptr;
+
+    D3D11_RASTERIZER_DESC rd{};
+    rd.CullMode = D3D11_CULL_BACK;
+    rd.DepthClipEnable = TRUE;
+    rd.FillMode = D3D11_FILL_SOLID;
+    rd.SlopeScaledDepthBias = 0.0f;
+
+    auto hr = m_device->CreateRasterizerState(&rd, ppRasterState);
+
+    return hr;
+}
+
 HRESULT DevResources::CreateVertexShader(const void* byteCode, SIZE_T length, ID3D11VertexShader** ppVertexShader)
 {
     ATLASSERT(byteCode);

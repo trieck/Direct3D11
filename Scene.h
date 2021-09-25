@@ -13,10 +13,13 @@ public:
     HRESULT Resize(int width, int height);
     HRESULT RenderFrame();
     void Zoom(int step);
+    void RotateX(int step);
+    void RotateZ(int step);
 
 private:
     void Destroy();
     void BeginScene();
+    HRESULT CreateDepthStencil(int width, int height);
     HRESULT CreateView(HWND hWnd, int width, int height);
     HRESULT EndScene();
     HRESULT InitPipeline();
@@ -36,6 +39,10 @@ private:
     ComPtr<ID3D11InputLayout> m_inputLayout;
     ComPtr<ID3D11ShaderResourceView> m_textureView;
     ComPtr<ID3D11SamplerState> m_samplerState;
+    ComPtr<ID3D11Texture2D> m_depthStencilBuffer;
+    ComPtr<ID3D11DepthStencilState> m_depthStencilState;
+    ComPtr<ID3D11DepthStencilView> m_depthStencilView;
+    ComPtr<ID3D11RasterizerState> m_rasterState;
 
     XMMATRIX m_projectionMatrix{};
     XMMATRIX m_worldMatrix{};
@@ -46,5 +53,6 @@ private:
     FrameTimer m_timer;
     float m_elapsed = 0.0f;
     float m_zoom = -6.0f;
+    int m_rotXPos = 0;
+    int m_rotZPos = 0;
 };
-

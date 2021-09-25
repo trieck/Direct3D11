@@ -52,7 +52,13 @@ LRESULT Direct3DView::OnMouseWheel(UINT vKeys, short distance, const CPoint& pt)
 {
     int step = distance / WHEEL_DELTA;
 
-    m_scene.Zoom(step);
+    if (vKeys & MK_CONTROL) {
+        m_scene.RotateX(step);
+    } else if (vKeys & MK_SHIFT) {
+        m_scene.RotateZ(step);
+    } else {
+        m_scene.Zoom(step);
+    }
 
     return 0;
 }
