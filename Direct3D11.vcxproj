@@ -58,10 +58,14 @@
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_WINDOWS;STRICT;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(GLTF_SDK_HOME)\GLTFSDK\Inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>GLTFSDK.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(GLTF_SDK_HOME)\Built\Out\v142\$(Platform)\$(Configuration)\GLTFSDK;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -74,15 +78,19 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(GLTF_SDK_HOME)\GLTFSDK\Inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>GLTFSDK.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(GLTF_SDK_HOME)\Built\Out\v142\$(Platform)\$(Configuration)\GLTFSDK;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="common.hlsli" />
     <None Include="packages.config" />
     <None Include="PixelShader.shh" />
+    <None Include="res\cube.glb" />
     <None Include="VertexShader.shh" />
   </ItemGroup>
   <ItemGroup>
@@ -92,6 +100,7 @@
     <ClInclude Include="Direct3DApp.h" />
     <ClInclude Include="Direct3DView.h" />
     <ClInclude Include="FrameTimer.h" />
+    <ClInclude Include="GLBResReader.h" />
     <ClInclude Include="MainFrame.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="resource.h" />
@@ -116,10 +125,13 @@
     <ClCompile Include="FrameTimer.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Use</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="GLBResReader.cpp" />
     <ClCompile Include="MainFrame.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Use</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Model.cpp" />
+    <ClCompile Include="Model.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Use</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="Scene.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Use</PrecompiledHeader>
     </ClCompile>

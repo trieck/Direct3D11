@@ -31,14 +31,11 @@ private:
     ComPtr<ID3D11DeviceContext1> m_context;
     ComPtr<IDXGISwapChain1> m_swapChain;
     ComPtr<ID3D11RenderTargetView> m_renderTarget;
-    ComPtr<ID3D11Buffer> m_matrixBuffer;
     ComPtr<ID3D11Buffer> m_lightBuffer;
     ComPtr<ID3D11Buffer> m_cameraBuffer;
     ComPtr<ID3D11VertexShader> m_vertexShader;
     ComPtr<ID3D11PixelShader> m_pixelShader;
     ComPtr<ID3D11InputLayout> m_inputLayout;
-    ComPtr<ID3D11ShaderResourceView> m_textureView;
-    ComPtr<ID3D11SamplerState> m_samplerState;
     ComPtr<ID3D11Texture2D> m_depthStencilBuffer;
     ComPtr<ID3D11DepthStencilState> m_depthStencilState;
     ComPtr<ID3D11DepthStencilView> m_depthStencilView;

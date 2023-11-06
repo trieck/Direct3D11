@@ -5,14 +5,9 @@
 #include "PixelShader.shh"
 #include "resource.h"
 
-extern Direct3DApp _Module;
+#include <GLTFSDK/GLBResourceReader.h>
 
-struct alignas(16) MatrixBuffer
-{
-    XMMATRIX world;
-    XMMATRIX view;
-    XMMATRIX projection;
-};
+extern Direct3DApp _Module;
 
 struct alignas(16) LightBuffer
 {
@@ -148,38 +143,7 @@ HRESULT Scene::InitPipeline()
     auto& devResources = _Module.devResources();
 
     auto hr = m_model.Load(_Module.m_hInstResource,
-                           IDR_MODEL, L"TEXT",
-                           IDR_TEXTURE, L"DDS");
-    if (FAILED(hr)) {
-        return hr;
-    }
-
-    hr = devResources.LoadTextureFromResource(_Module.m_hInstResource, IDR_TEXTURE,
-                                              L"DDS", m_textureView.GetAddressOf());
-    if (FAILED(hr)) {
-        return hr;
-    }
-
-    D3D11_SAMPLER_DESC sd{};
-    sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-    sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-    sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    sd.MipLODBias = 0.0f;
-    sd.MaxAnisotropy = 1;
-    sd.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
-    sd.MaxLOD = D3D11_FLOAT32_MAX;
-
-    hr = devResources.CreateSamplerState(&sd, m_samplerState.GetAddressOf());
-    if (FAILED(hr)) {
-        return hr;
-    }
-
-    hr = devResources.CreateBuffer(sizeof(MatrixBuffer),
-                                   D3D11_BIND_CONSTANT_BUFFER,
-                                   D3D11_USAGE_DYNAMIC,
-                                   D3D11_CPU_ACCESS_WRITE,
-                                   m_matrixBuffer.GetAddressOf());
+                           IDR_CUBE, L"GLB");
     if (FAILED(hr)) {
         return hr;
     }
@@ -219,8 +183,7 @@ HRESULT Scene::InitPipeline()
 
     m_context->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-    m_context->PSSetShaderResources(0, 1, m_textureView.GetAddressOf());
-    m_context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
+    //m_context->PSSetSamplers(0, 1, m_samplerState.GetAddressOf());
 
     D3D11_INPUT_ELEMENT_DESC ied[] = {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -260,20 +223,20 @@ HRESULT Scene::UpdateModel()
     auto cameraView = m_camera.view();
 
     D3D11_MAPPED_SUBRESOURCE mappedResource{};
-    auto hr = m_context->Map(m_matrixBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
-    if (FAILED(hr)) {
-        return hr;
-    }
+    //auto hr = m_context->Map(m_matrixBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    //if (FAILED(hr)) {
+    //    return hr;
+    //}
 
-    auto* matrixBuffer = static_cast<MatrixBuffer*>(mappedResource.pData);
-    matrixBuffer->world = XMMatrixTranspose(m_worldMatrix);
-    matrixBuffer->view = XMMatrixTranspose(cameraView);
-    matrixBuffer->projection = XMMatrixTranspose(m_projectionMatrix);
+    //auto* matrixBuffer = static_cast<MatrixBuffer*>(mappedResource.pData);
+    //matrixBuffer->world = XMMatrixTranspose(m_worldMatrix);
+    //matrixBuffer->view = XMMatrixTranspose(cameraView);
+    //matrixBuffer->projection = XMMatrixTranspose(m_projectionMatrix);
 
-    m_context->Unmap(m_matrixBuffer.Get(), 0);
-    m_context->VSSetConstantBuffers(0, 1, m_matrixBuffer.GetAddressOf());
+    //m_context->Unmap(m_matrixBuffer.Get(), 0);
+    //m_context->VSSetConstantBuffers(0, 1, m_matrixBuffer.GetAddressOf());
 
-    hr = m_context->Map(m_cameraBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    auto hr = m_context->Map(m_cameraBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
     if (FAILED(hr)) {
         return hr;
     }
@@ -370,14 +333,11 @@ void Scene::Destroy()
     m_depthStencilView.Reset();
     m_depthStencilState.Reset();
     m_depthStencilBuffer.Reset();
-    m_samplerState.Reset();
-    m_textureView.Reset();
     m_inputLayout.Reset();
     m_vertexShader.Reset();
     m_pixelShader.Reset();
     m_cameraBuffer.Reset();
     m_lightBuffer.Reset();
-    m_matrixBuffer.Reset();
     m_renderTarget.Reset();
     m_swapChain.Reset();
     m_context.Reset();

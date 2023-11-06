@@ -2,15 +2,22 @@
 #include "ResourceLoader.h"
 
 /////////////////////////////////////////////////////////////////////////////
-HRESULT ResourceLoader::Load(HINSTANCE hInstance, INT nResourceID, 
-    LPCWSTR type, LPCBYTE& pdata, UINT& size)
+HRESULT ResourceLoader::Load(HINSTANCE hInstance, INT nResourceID,
+                             LPCWSTR type, LPCBYTE& pdata, UINT& size)
+{
+    return Load(hInstance, MAKEINTRESOURCE(nResourceID), type, pdata, size);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+HRESULT ResourceLoader::Load(HINSTANCE hInstance, LPCWSTR resource,
+                             LPCWSTR type, LPCBYTE& pdata, UINT& size)
 {
     ATLASSERT(hInstance);
 
     pdata = nullptr;
     size = 0;
 
-    auto hResInfo = FindResource(hInstance, MAKEINTRESOURCE(nResourceID), type);
+    auto hResInfo = FindResource(hInstance, resource, type);
     if (hResInfo == nullptr) {
         return HRESULT_FROM_WIN32(GetLastError());
     }

@@ -1,5 +1,7 @@
 #pragma once
 
+#define NOMINMAX
+
 #include <atlbase.h>
 #include <atltypes.h>
 #include <atlapp.h>
@@ -23,6 +25,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <unordered_map>
 
 using namespace Microsoft::WRL;
 using namespace DirectX;
